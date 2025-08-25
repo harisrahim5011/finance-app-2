@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "./finanace-app/dist",
+    "public": "./finanace-app_2/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
