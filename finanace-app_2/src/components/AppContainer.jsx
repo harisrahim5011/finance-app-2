@@ -1,14 +1,14 @@
-import React from 'react';
-import { useAuth } from '../hooks/useAuth'; // Custom hook for authentication state and functions
-import { useTransactions } from '../components/TransactionContext'; // Custom hook for transaction-related state and functions
-import UserInfo from './UserInfo'; // Component to display user information
-import OverviewSection from './OverviewSection'; // Component for financial overview (income, expenses, balance)
-import TransactionsSection from './TransactionsSection'; // Component to list monthly transactions
-import AddTransactionModal from './AddTransactionModal'; // Modal for adding new transactions
-import MessageModal from './MessageModal'; // Generic modal for displaying messages (success/error)
-import ConfirmModal from './ConfirmModal'; // Generic modal for user confirmations
-import LoadingIndicator from './LoadingIndicator'; // Component to display a loading spinner
-
+import React from "react";
+import { useAuth } from "../hooks/useAuth"; // Custom hook for authentication state and functions
+import { useTransactions } from "../components/TransactionContext"; // Custom hook for transaction-related state and functions
+import UserInfo from "./UserInfo"; // Component to display user information
+import OverviewSection from "./OverviewSection"; // Component for financial overview (income, expenses, balance)
+import TransactionsSection from "./TransactionsSection"; // Component to list monthly transactions
+import AddTransactionModal from "./AddTransactionModal"; // Modal for adding new transactions
+import MessageModal from "./MessageModal"; // Generic modal for displaying messages (success/error)
+import ConfirmModal from "./ConfirmModal"; // Generic modal for user confirmations
+import LoadingIndicator from "./LoadingIndicator"; // Component to display a loading spinner
+import ExpenseList from "./ExpenseList";
 /**
  * AppContainer Component
  *
@@ -37,11 +37,11 @@ const AppContainer = () => {
   // showConfirmModal: Controls the visibility of the ConfirmModal.
   const [showConfirmModal, setShowConfirmModal] = React.useState(false);
   // message: Stores the text and error status for the MessageModal.
-  const [message, setMessage] = React.useState({ text: '', isError: false });
+  const [message, setMessage] = React.useState({ text: "", isError: false });
   // confirmAction: Stores the callback function to execute upon confirmation in ConfirmModal.
   const [confirmAction, setConfirmAction] = React.useState(null);
   // confirmMessage: Stores the message to display in the ConfirmModal.
-  const [confirmMessage, setConfirmMessage] = React.useState('');
+  const [confirmMessage, setConfirmMessage] = React.useState("");
 
   // --- Conditional Rendering for Loading States ---
   // If transaction data is loading, display a loading indicator.
@@ -68,7 +68,8 @@ const AppContainer = () => {
    * @param {string} msg - The confirmation message to display.
    * @param {function} action - The callback function to execute if the user confirms.
    */
-  const showConfirm = (msg, action) => { // Renamed 'message' to 'msg' for clarity with state variable
+  const showConfirm = (msg, action) => {
+    // Renamed 'message' to 'msg' for clarity with state variable
     setConfirmMessage(msg); // Set the confirmation message
     setConfirmAction(() => action); // Store the action callback (using a function to prevent immediate execution)
     setShowConfirmModal(true); // Open the confirmation modal
@@ -94,7 +95,12 @@ const AppContainer = () => {
           />
         )}
       </header>
-
+      {/* ExpenseList component: Integrated here */}
+      <div className="mb-6 text-center bg-white p-4 rounded-xl shadow-lg">
+        {" "}
+        {/* Added margin top for spacing */}
+        <ExpenseList />
+      </div>
       {/* Main content area, styled with a white background, rounded corners, and shadow. */}
       <div className="bg-white rounded-xl shadow-2xl p-6">
         {/* OverviewSection component: displays total income, expenses, and balance. */}
