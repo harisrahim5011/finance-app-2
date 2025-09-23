@@ -59,40 +59,63 @@ export function TransactionProvider({ children }) {
 
     setLoading(true);
 
-    try {
-      const transactionsCol = collection(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`);
-      const qTransactions = query(transactionsCol);
-
-      unsubscribeTransactions = onSnapshot(qTransactions, (querySnapshot) => {
-        const transactionsData = [];
-        querySnapshot.forEach((doc) => {
-          transactionsData.push({ id: doc.id, ...doc.data() });
-        });
-        transactionsData.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
-        setTransactions(transactionsData);
-      }, (error) => {
-        console.error("Error loading transactions:", error);
-        setLoading(false);
-      });
-    } catch (error) {
-      console.error("Error setting up transaction listener:", error);
-      setLoading(false);
-    }
-
     const categoriesCol = collection(db, `artifacts/${appId}/users/${currentUser.uid}/categories`);
-    unsubscribeCategories = onSnapshot(categoriesCol, async (querySnapshot) => {
-      const fetchedCategories = [];
-      querySnapshot.forEach((doc) => {
-        fetchedCategories.push({ id: doc.id, ...doc.data() });
-      });
+    
+    // Check if the user has any categories. If not, add the defaults.
+    const checkAndPopulateCategories = async () => {
+        try {
+            const categoriesSnapshot = await getDocs(categoriesCol);
+            if (categoriesSnapshot.empty) {
+                console.log("No categories found for user. Populating with defaults...");
+                for (const category of defaultCategories) {
+                    await addDoc(categoriesCol, {
+                        ...category,
+                        userId: currentUser.uid,
+                        createdAt: Timestamp.now()
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Error checking or populating default categories:", error);
+        }
+    };
+    
+    checkAndPopulateCategories();
 
-      const finalCategories = [...defaultCategories, ...fetchedCategories];
-      setUserCategories(finalCategories);
-      setLoading(false);
+    // Set up the real-time listener for categories
+    unsubscribeCategories = onSnapshot(categoriesCol, (querySnapshot) => {
+        const fetchedCategories = [];
+        querySnapshot.forEach((doc) => {
+            fetchedCategories.push({ id: doc.id, ...doc.data() });
+        });
+        
+        setUserCategories(fetchedCategories);
+        setLoading(false);
     }, (error) => {
-      console.error("Error loading categories:", error);
-      setLoading(false);
+        console.error("Error loading categories:", error);
+        setLoading(false);
     });
+
+    // Set up the real-time listener for transactions
+    try {
+        const transactionsCol = collection(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`);
+        const qTransactions = query(transactionsCol);
+
+        unsubscribeTransactions = onSnapshot(qTransactions, (querySnapshot) => {
+            const transactionsData = [];
+            querySnapshot.forEach((doc) => {
+                transactionsData.push({ id: doc.id, ...doc.data() });
+            });
+            transactionsData.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
+            setTransactions(transactionsData);
+        }, (error) => {
+            console.error("Error loading transactions:", error);
+            setLoading(false);
+        });
+    } catch (error) {
+        console.error("Error setting up transaction listener:", error);
+        setLoading(false);
+    }
 
     return () => {
       unsubscribeTransactions();
@@ -121,6 +144,7 @@ export function TransactionProvider({ children }) {
         name: name.trim(),
         budgetAmount: budgetAmount || 0,
         spentAmount: 0,
+        userId: currentUser.uid,
         createdAt: Timestamp.now()
       });
       return true;
@@ -160,6 +184,7 @@ export function TransactionProvider({ children }) {
     try {
       await addDoc(collection(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`), {
         ...transaction,
+        userId: currentUser.uid,
         date: Timestamp.fromDate(new Date(transaction.date)),
         createdAt: Timestamp.now()
       });
