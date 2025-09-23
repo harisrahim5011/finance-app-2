@@ -140,6 +140,7 @@ export function TransactionProvider({ children }) {
 
     setLoading(true);
     try {
+      // 1. Add the new category document
       await addDoc(categoriesRef, {
         name: name.trim(),
         budgetAmount: budgetAmount || 0,
@@ -147,6 +148,21 @@ export function TransactionProvider({ children }) {
         userId: currentUser.uid,
         createdAt: Timestamp.now()
       });
+      
+      // 2. If a budget amount is provided, create a corresponding transaction
+      if (budgetAmount > 0) {
+        const transactionsRef = collection(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`);
+        await addDoc(transactionsRef, {
+          type: 'income',
+          amount: budgetAmount,
+          category: name.trim(),
+          description: `Initial budget for ${name.trim()}`,
+          date: Timestamp.now(),
+          userId: currentUser.uid,
+          createdAt: Timestamp.now()
+        });
+      }
+
       return true;
     } catch (error) {
       console.error("Error adding category:", error);
