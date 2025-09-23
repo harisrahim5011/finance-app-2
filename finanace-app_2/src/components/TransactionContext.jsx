@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db, appId } from '../firebase'; // Import Firestore instance (db) and app ID from firebase configuration
+import { db, appId } from '../firebase';
 import {
   collection,
   query,
@@ -8,27 +8,14 @@ import {
   deleteDoc,
   doc,
   Timestamp,
-  where, // Added for querying categories by type
-  getDocs // Added for checking category existence
-} from 'firebase/firestore'; // Firebase Firestore methods
-import { useAuth } from '../hooks/useAuth'; // Custom hook to get the current authenticated user
+  where,
+  getDocs,
+  updateDoc,
+} from 'firebase/firestore';
+import { useAuth } from '../hooks/useAuth';
 
-/**
- * TransactionContext
- *
- * This React Context is used to provide transaction-related state and functions
- * to all components wrapped by the TransactionProvider.
- */
 const TransactionContext = createContext();
 
-/**
- * useTransactions Hook
- *
- * A custom hook to consume the TransactionContext. This makes it easier for components
- * to access the transaction state and functions without directly using useContext.
- * @returns {object} The value provided by the TransactionContext.
- * @throws {Error} If used outside of a TransactionProvider.
- */
 export function useTransactions() {
   const context = useContext(TransactionContext);
   if (!context) {
@@ -37,67 +24,41 @@ export function useTransactions() {
   return context;
 }
 
-/**
- * TransactionProvider Component
- *
- * This component acts as a provider for the TransactionContext. It manages:
- * - The list of financial transactions.
- * - The currently displayed month, year, and day for filtering transactions.
- * - The loading state for transaction operations.
- * - User-defined categories for income and expenses (fetched from Firestore).
- * - Functions to add, delete, and fetch transactions from Firestore.
- * - Functions to add and delete user-defined categories in Firestore.
- * - Functions to change the current month/year view and the current day view.
- *
- * @param {object} props - The component's props.
- * @param {React.ReactNode} props.children - The child components that will consume the TransactionContext.
- */
 export function TransactionProvider({ children }) {
-  // transactions: State to store the array of financial transactions.
   const [transactions, setTransactions] = useState([]);
-  // currentMonth: State to store the index of the currently displayed month (0-11).
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  // currentYear: State to store the currently displayed year.
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  // currentDay: State to store the currently displayed day of the month (1-31).
   const [currentDay, setCurrentDay] = useState(new Date().getDate());
-  // loading: State to indicate if transaction data or category data is being fetched or modified.
   const [loading, setLoading] = useState(false);
-  // currentUser: Get the authenticated user from the AuthContext.
   const { currentUser } = useAuth();
 
-  // NEW: State for user-defined categories, fetched from Firestore
-  const [userIncomeCategories, setUserIncomeCategories] = useState([]);
-  const [userExpenseCategories, setUserExpenseCategories] = useState([]);
+  const [userCategories, setUserCategories] = useState([]);
 
-  // Default categories - these are now just initial values, not the main source.
-  // We'll add these if the user has no categories, or keep them if they're already present.
-  const defaultIncomeCategories = ["Salary", "Business", "Freelance", "Gifts","Adjusted", "Borrowed", "returned"];
-  const defaultExpenseCategories = ["Food", "Transport", "Rent", "Utilities", "Entertainment", "Health", "Shopping", "Education", "Adjusted", "lent", "returned"];
+  const defaultCategories = [
+    { name: "Food", budgetAmount: 0, spentAmount: 0 },
+    { name: "Transport", budgetAmount: 0, spentAmount: 0 },
+    { name: "Rent", budgetAmount: 0, spentAmount: 0 },
+    { name: "Utilities", budgetAmount: 0, spentAmount: 0 },
+    { name: "Entertainment", budgetAmount: 0, spentAmount: 0 },
+    { name: "Health", budgetAmount: 0, spentAmount: 0 },
+    { name: "Shopping", budgetAmount: 0, spentAmount: 0 },
+    { name: "Education", budgetAmount: 0, spentAmount: 0 },
+    { name: "Savings", budgetAmount: 0, spentAmount: 0 },
+  ];
 
-  /**
-   * useEffect Hook for Loading Transactions and Categories
-   *
-   * This effect sets up real-time listeners (onSnapshot) to fetch both transactions
-   * and user-defined categories from Firestore for the current user.
-   * It runs whenever the `currentUser` changes.
-   */
   useEffect(() => {
     let unsubscribeTransactions = () => {};
     let unsubscribeCategories = () => {};
 
-    // If no user is logged in, clear all data and stop loading.
     if (!currentUser) {
       setTransactions([]);
-      setUserIncomeCategories([]);
-      setUserExpenseCategories([]);
+      setUserCategories([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true); // Set loading to true when starting to fetch data
+    setLoading(true);
 
-    // --- Setup Transactions Listener ---
     try {
       const transactionsCol = collection(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`);
       const qTransactions = query(transactionsCol);
@@ -109,9 +70,6 @@ export function TransactionProvider({ children }) {
         });
         transactionsData.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime());
         setTransactions(transactionsData);
-        // Only set loading to false after both transactions AND categories are loaded
-        // This is handled better by a combined loading state if more complex.
-        // For simplicity, we'll let category loading handle final setLoading(false).
       }, (error) => {
         console.error("Error loading transactions:", error);
         setLoading(false);
@@ -121,68 +79,48 @@ export function TransactionProvider({ children }) {
       setLoading(false);
     }
 
-    // --- Setup Categories Listener ---
     const categoriesCol = collection(db, `artifacts/${appId}/users/${currentUser.uid}/categories`);
     unsubscribeCategories = onSnapshot(categoriesCol, async (querySnapshot) => {
-      const fetchedIncomeCategories = [];
-      const fetchedExpenseCategories = [];
+      const fetchedCategories = [];
       querySnapshot.forEach((doc) => {
-        const catData = doc.data();
-        if (catData.type === 'income') {
-          fetchedIncomeCategories.push(catData.name);
-        } else if (catData.type === 'expense') {
-          fetchedExpenseCategories.push(catData.name);
-        }
+        fetchedCategories.push({ id: doc.id, ...doc.data() });
       });
 
-      // Ensure default categories are present if user hasn't added any yet or they are missing
-      const finalIncomeCategories = [...new Set([...defaultIncomeCategories, ...fetchedIncomeCategories])].sort();
-      const finalExpenseCategories = [...new Set([...defaultExpenseCategories, ...fetchedExpenseCategories])].sort();
-
-      setUserIncomeCategories(finalIncomeCategories);
-      setUserExpenseCategories(finalExpenseCategories);
-      setLoading(false); // Set loading to false once categories are loaded (and implicitly transactions too, if that listener fired)
+      const finalCategories = [...defaultCategories, ...fetchedCategories];
+      setUserCategories(finalCategories);
+      setLoading(false);
     }, (error) => {
       console.error("Error loading categories:", error);
       setLoading(false);
     });
 
-    // Return cleanup function to unsubscribe from listeners
     return () => {
       unsubscribeTransactions();
       unsubscribeCategories();
     };
-  }, [currentUser, appId]); // Dependency array includes appId now
+  }, [currentUser, appId]);
 
-  /**
-   * addCategory Function
-   *
-   * Adds a new user-defined category to Firestore.
-   * @param {string} name - The name of the new category.
-   * @param {'income' | 'expense'} type - The type of category (income or expense).
-   * @returns {Promise<boolean>} True if the category was added successfully, false otherwise.
-   */
-  const addCategory = async (name, type) => {
-    if (!currentUser || !name.trim() || !type) {
-      console.warn("Cannot add category: Missing user, name, or type.");
+  const addCategory = async (name, budgetAmount) => {
+    if (!currentUser || !name.trim()) {
+      console.warn("Cannot add category: Missing user or name.");
       return false;
     }
 
-    // Check if category already exists to prevent duplicates
     const categoriesRef = collection(db, `artifacts/${appId}/users/${currentUser.uid}/categories`);
-    const q = query(categoriesRef, where("name", "==", name.trim()), where("type", "==", type));
+    const q = query(categoriesRef, where("name", "==", name.trim()));
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
-      console.warn(`Category '${name}' already exists for ${type}.`);
-      return false; // Category already exists
+      console.warn(`Category '${name}' already exists.`);
+      return false;
     }
 
     setLoading(true);
     try {
       await addDoc(categoriesRef, {
         name: name.trim(),
-        type: type,
+        budgetAmount: budgetAmount || 0,
+        spentAmount: 0,
         createdAt: Timestamp.now()
       });
       return true;
@@ -194,35 +132,15 @@ export function TransactionProvider({ children }) {
     }
   };
 
-  /**
-   * deleteCategory Function
-   *
-   * Deletes a user-defined category from Firestore.
-   * @param {string} name - The name of the category to delete.
-   * @param {'income' | 'expense'} type - The type of category (income or expense).
-   * @returns {Promise<boolean>} True if the category was deleted successfully, false otherwise.
-   */
-  const deleteCategory = async (name, type) => {
-    if (!currentUser || !name || !type) {
-      console.warn("Cannot delete category: Missing user, name, or type.");
+  const deleteCategory = async (categoryId) => {
+    if (!currentUser || !categoryId) {
+      console.warn("Cannot delete category: Missing user or ID.");
       return false;
     }
 
     setLoading(true);
     try {
-      const categoriesRef = collection(db, `artifacts/${appId}/users/${currentUser.uid}/categories`);
-      // Find the document ID for the category to delete
-      const q = query(categoriesRef, where("name", "==", name), where("type", "==", type));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        console.warn(`Category '${name}' not found for deletion.`);
-        return false;
-      }
-
-      // Assuming unique names per type, delete the first found document
-      const docToDelete = querySnapshot.docs[0];
-      await deleteDoc(doc(db, `artifacts/${appId}/users/${currentUser.uid}/categories`, docToDelete.id));
+      await deleteDoc(doc(db, `artifacts/${appId}/users/${currentUser.uid}/categories`, categoryId));
       return true;
     } catch (error) {
       console.error("Error deleting category:", error);
@@ -232,14 +150,7 @@ export function TransactionProvider({ children }) {
     }
   };
 
-  /**
-   * addTransaction Function
-   *
-   * Adds a new transaction document to the current user's transactions collection in Firestore.
-   * @param {object} transaction - The transaction object containing type, amount, category, date, and description.
-   * @returns {Promise<boolean>} True if the transaction was added successfully, false otherwise.
-   */
-  const addTransaction = async (transaction) => { // Updated to accept transaction object directly
+  const addTransaction = async (transaction) => {
     if (!currentUser) {
       console.warn("Cannot add transaction: No user authenticated.");
       return false;
@@ -249,11 +160,33 @@ export function TransactionProvider({ children }) {
     try {
       await addDoc(collection(db, `artifacts/${appId}/users/${currentUser.uid}/transactions`), {
         ...transaction,
-        // Ensure date is converted to Firestore Timestamp
         date: Timestamp.fromDate(new Date(transaction.date)),
-        // Add a createdAt timestamp for tracking.
         createdAt: Timestamp.now()
       });
+
+      const categoryToUpdateQuery = query(
+        collection(db, `artifacts/${appId}/users/${currentUser.uid}/categories`),
+        where("name", "==", transaction.category)
+      );
+
+      const categorySnapshot = await getDocs(categoryToUpdateQuery);
+      if (!categorySnapshot.empty) {
+        const categoryDoc = categorySnapshot.docs[0];
+        const categoryId = categoryDoc.id;
+        const currentData = categoryDoc.data();
+
+        if (transaction.type === 'income') {
+          const newBudget = (currentData.budgetAmount || 0) + transaction.amount;
+          await updateDoc(doc(db, `artifacts/${appId}/users/${currentUser.uid}/categories`, categoryId), {
+            budgetAmount: newBudget
+          });
+        } else if (transaction.type === 'expense') {
+          const newSpent = (currentData.spentAmount || 0) + transaction.amount;
+          await updateDoc(doc(db, `artifacts/${appId}/users/${currentUser.uid}/categories`, categoryId), {
+            spentAmount: newSpent
+          });
+        }
+      }
       return true;
     } catch (error) {
       console.error("Error adding transaction:", error);
@@ -263,13 +196,6 @@ export function TransactionProvider({ children }) {
     }
   };
 
-  /**
-   * deleteTransaction Function
-   *
-   * Deletes a specific transaction document from the current user's transactions collection in Firestore.
-   * @param {string} transactionId - The ID of the transaction document to delete.
-   * @returns {Promise<boolean>} True if the transaction was deleted successfully, false otherwise.
-   */
   const deleteTransaction = async (transactionId) => {
     if (!currentUser) {
       console.warn("Cannot delete transaction: No user authenticated.");
@@ -288,13 +214,6 @@ export function TransactionProvider({ children }) {
     }
   };
 
-  /**
-   * changeMonth Function
-   *
-   * Updates the currentMonth and currentYear states to navigate between months.
-   * When changing months, the day is reset to 1 to avoid issues with month-end dates.
-   * @param {number} delta - The change in months (e.g., -1 for previous month, 1 for next month).
-   */
   const changeMonth = (delta) => {
     setCurrentMonth(prev => {
       let newMonth = prev + delta;
@@ -309,18 +228,11 @@ export function TransactionProvider({ children }) {
       }
 
       setCurrentYear(newYear);
-      setCurrentDay(1); // Reset day to 1 when month changes
+      setCurrentDay(1);
       return newMonth;
     });
   };
 
-  /**
-   * changeDay Function
-   *
-   * Updates the currentDay, currentMonth, and currentYear states to navigate between days.
-   * It handles day, month, and year rollovers correctly.
-   * @param {number} delta - The change in days (e.g., -1 for previous day, 1 for next day).
-   */
   const changeDay = (delta) => {
     const currentDate = new Date(currentYear, currentMonth, currentDay);
     currentDate.setDate(currentDate.getDate() + delta);
@@ -330,24 +242,21 @@ export function TransactionProvider({ children }) {
     setCurrentDay(currentDate.getDate());
   };
 
-  // The value object containing all state and functions to be provided by the context.
   const value = {
     transactions,
     currentMonth,
     currentYear,
     currentDay,
-    userIncomeCategories, // Exposed user-defined income categories
-    userExpenseCategories, // Exposed user-defined expense categories
+    userCategories,
     addTransaction,
     deleteTransaction,
-    addCategory, // Exposed function to add categories
-    deleteCategory, // Exposed function to delete categories
+    addCategory,
+    deleteCategory,
     changeMonth,
     changeDay,
     loading
   };
 
-  // Render the TransactionContext.Provider, making the 'value' available to its children.
   return (
     <TransactionContext.Provider value={value}>
       {children}
