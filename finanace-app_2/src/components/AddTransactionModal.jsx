@@ -20,9 +20,7 @@ const AddTransactionModal = ({ isOpen, onClose, showMessage, showConfirm }) => {
 
   const [selectedCategory, setSelectedCategory] = useState(null);
 
-  const NON_DELETABLE_DEFAULT_CATEGORIES = [
-    "Food", "Transport", "Rent", "Utilities", "Entertainment", "Health", "Shopping", "Education", "Savings",
-  ];
+  // The NON_DELETABLE_DEFAULT_CATEGORIES array is now removed.
 
   useEffect(() => {
     if (isOpen) {
@@ -123,7 +121,7 @@ const AddTransactionModal = ({ isOpen, onClose, showMessage, showConfirm }) => {
     if (type === 'income') {
       return cat.budgetAmount !== null && cat.budgetAmount !== undefined;
     } else {
-      return true; // Show all categories for expenses
+      return true;
     }
   });
 
@@ -217,7 +215,6 @@ const AddTransactionModal = ({ isOpen, onClose, showMessage, showConfirm }) => {
             ></textarea>
           </div>
 
-          {/* Conditional rendering based on `type` state */}
           {type === 'income' && (
             <div className="mb-4 text-center">
               <button
@@ -265,20 +262,18 @@ const AddTransactionModal = ({ isOpen, onClose, showMessage, showConfirm }) => {
                   <p className="text-gray-500 text-sm text-center">No custom categories added yet.</p>
                 ) : (
                   categories.map(cat => {
-                    const isDeletable = !NON_DELETABLE_DEFAULT_CATEGORIES.includes(cat.name);
+                    // Removed the isDeletable check, now all categories can be deleted.
                     return (
                       <div key={cat.name} className="flex justify-between items-center p-2 bg-white border border-gray-200 rounded-lg shadow-sm">
                         <span className="text-gray-700 text-sm">{cat.name}</span>
-                        {isDeletable && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(cat.name)}
-                            className="text-red-500 hover:text-red-700 text-xs font-semibold p-1 rounded-full"
-                            title={`Delete ${cat.name}`}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(cat.name)}
+                          className="text-red-500 hover:text-red-700 text-xs font-semibold p-1 rounded-full"
+                          title={`Delete ${cat.name}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
                       </div>
                     );
                   })
