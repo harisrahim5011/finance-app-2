@@ -1,15 +1,56 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useTransactions } from '../components/TransactionContext';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useRef, useEffect } from "react";
+import { useTransactions } from "../components/TransactionContext";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
-const ExpenseList = () => {
+const ExpenseList = ({ filteredTransactions }) => {
   const { userCategories } = useTransactions();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Filter categories to include only those with a spent amount,
-  // which are relevant for an expense list.
-  const expenseCategories = userCategories.filter(cat => cat.spentAmount > 0);
+  // 1. Safely ensure filteredTransactions is an array for reduce()
+  const transactionsArray = Array.isArray(filteredTransactions)
+    ? filteredTransactions
+    : Object.values(filteredTransactions || {});
+
+  // 2. Calculate the income, expense, and balance for each category
+  const categorySummary = transactionsArray.reduce((acc, t) => {
+    if (!t || typeof t.amount !== "number" || !t.category || !t.type) {
+      return acc;
+    }
+
+    const { category, amount, type } = t;
+
+    if (!acc[category]) {
+      acc[category] = {
+        income: 0,
+        expense: 0,
+        balance: 0,
+      };
+    }
+
+    if (type === "income") {
+      acc[category].income += amount;
+      acc[category].balance += amount;
+    } else if (type === "expense") {
+      acc[category].expense += amount;
+      acc[category].balance -= amount;
+    }
+
+    return acc;
+  }, {});
+
+  // 3. Prepare the final list for rendering
+  const expenseCategoriesList = Object.keys(categorySummary)
+    .filter(
+      (categoryName) =>
+        categorySummary[categoryName].income > 0 ||
+        categorySummary[categoryName].expense > 0
+    )
+    .map((categoryName) => ({
+      name: categoryName,
+      id: categoryName,
+      ...categorySummary[categoryName],
+    }));
 
   const toggleDropdown = () => {
     setIsOpen(!isOpen);
@@ -22,25 +63,33 @@ const ExpenseList = () => {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [dropdownRef]);
 
-  const calculatePercentage = (spent, budget) => {
-    if (budget === 0 || !budget) return 0;
-    const remaining = budget - spent;
-    return Math.max(0, (remaining / budget) * 100);
+  // Function to calculate percentage REMAINING
+  const calculatePercentageRemaining = (expense, income) => {
+    if (income === 0 || !income) return 0;
+
+    const spentPercentage = (expense / income) * 100;
+    const remainingPercentage = 100 - spentPercentage;
+
+    return Math.max(0, remainingPercentage);
   };
 
-  const getProgressBarColor = (percentage) => {
-    if (percentage > 70) {
-      return 'bg-green-500';
-    } else if (percentage > 30) {
-      return 'bg-yellow-500';
+  // Function to determine color based on percentage REMAINING
+  const getProgressBarColor = (percentageRemaining) => {
+    if (percentageRemaining > 50) {
+      // More than 50% remaining is good -> GREEN
+      return "bg-green-500";
+    } else if (percentageRemaining > 15) {
+      // 15% to 50% remaining is a warning -> YELLOW
+      return "bg-yellow-500";
     } else {
-      return 'bg-red-500';
+      // Less than 15% remaining is critical -> RED
+      return "bg-red-500";
     }
   };
 
@@ -73,13 +122,24 @@ const ExpenseList = () => {
           tabIndex="-1"
         >
           <div className="py-1 max-h-60 overflow-y-auto" role="none">
-            {expenseCategories.length === 0 ? (
-              <div className="px-4 py-2 text-sm text-gray-500 text-center">No expenses recorded yet.</div>
+            {expenseCategoriesList.length === 0 ? (
+              <div className="px-4 py-2 text-sm text-gray-500 text-center">
+                No activity recorded for this month.
+              </div>
             ) : (
-              expenseCategories.map((category) => {
-                const percentage = calculatePercentage(category.spentAmount, category.budgetAmount);
-                const progressBarColor = getProgressBarColor(percentage);
-                const remaining = (category.budgetAmount || 0) - (category.spentAmount || 0);
+              expenseCategoriesList.map((category) => {
+                const percentageRemaining = calculatePercentageRemaining(
+                  category.expense,
+                  category.income
+                );
+
+                // FIX: Use percentageRemaining for the progress bar width
+                // The bar fills as the budget remains.
+                const progressBarWidth = percentageRemaining;
+
+                const progressBarColor =
+                  getProgressBarColor(percentageRemaining);
+                const balance = category.balance;
 
                 return (
                   <div
@@ -91,21 +151,29 @@ const ExpenseList = () => {
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-medium">{category.name}</span>
                       <span className="text-xs text-gray-500">
-                        QAR {category.spentAmount.toFixed(2)} / QAR {category.budgetAmount.toFixed(2)}
+                        {/* Display Expense vs Income */}
+                        Exp: QAR {category.expense.toFixed(2)} / Inc: QAR{" "}
+                        {category.income.toFixed(2)}
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className={`h-full rounded-full ${progressBarColor}`}
-                        style={{ width: `${percentage}%` }}
+                        // Corrected: Use percentageRemaining (progressBarWidth) for the visual width.
+                        style={{ width: `${progressBarWidth}%` }}
                       ></div>
                     </div>
                     <div className="flex justify-between items-center mt-1">
                       <div className="text-xs text-gray-600">
-                        {percentage.toFixed(0)}% Remaining
+                        {/* Display percentage REMAINING */}
+                        {percentageRemaining.toFixed(0)}% Remaining
                       </div>
-                      <div className={`text-xs font-semibold ${remaining < 0 ? 'text-red-500' : 'text-green-600'}`}>
-                        QAR {remaining.toFixed(2)}
+                      <div
+                        className={`text-xs font-semibold ${
+                          balance < 0 ? "text-red-500" : "text-green-600"
+                        }`}
+                      >
+                        Balance: QAR {balance.toFixed(2)}
                       </div>
                     </div>
                   </div>
