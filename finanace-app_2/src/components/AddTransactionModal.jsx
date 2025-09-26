@@ -20,9 +20,7 @@ const AddTransactionModal = ({
   const [showCategoryManagement, setShowCategoryManagement] = useState(false);
   const [newCategoryBudget, setNewCategoryBudget] = useState("");
 
-  const [selectedCategory, setSelectedCategory] = useState(null);
-
-  // The NON_DELETABLE_DEFAULT_CATEGORIES array is now removed.
+  const [selectedCategory, setSelectedCategory] = useState(null); // Base category object
 
   useEffect(() => {
     if (isOpen) {
@@ -39,6 +37,7 @@ const AddTransactionModal = ({
 
   const categories = userCategories || [];
 
+  // This useEffect links the selected category name to the full category object (for budget info)
   useEffect(() => {
     if (category) {
       const currentCategory = categories.find((cat) => cat.name === category);
@@ -139,6 +138,47 @@ const AddTransactionModal = ({
     }
   });
 
+  // 1. Safely ensure filteredTransactions is an array for reduce()
+  const transactionsArray = Array.isArray(filteredTransactions)
+    ? filteredTransactions
+    : Object.values(filteredTransactions || {});
+
+  // 2. Calculate the income, expense, and balance for each category (Category Summary Object)
+  const categorySummary = transactionsArray.reduce((acc, t) => {
+    if (!t || typeof t.amount !== "number" || !t.category || !t.type) {
+      return acc;
+    }
+
+    const { category, amount, type } = t;
+
+    if (!acc[category]) {
+      acc[category] = {
+        income: 0,
+        expense: 0,
+        balance: 0,
+      };
+    }
+
+    if (type === "income") {
+      acc[category].income += amount;
+      acc[category].balance += amount;
+    } else if (type === "expense") {
+      acc[category].expense += amount;
+      acc[category].balance -= amount;
+    }
+
+    return acc;
+  }, {});
+
+  // 3. FIX: Safely retrieve the summary data for the selected category, providing a default zero-object if none exists.
+  const selectedCategorySummary = selectedCategory
+    ? categorySummary[selectedCategory.name] || {
+        income: 0,
+        expense: 0,
+        balance: 0,
+      }
+    : null;
+
   return (
     <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-40 p-4">
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
@@ -229,33 +269,31 @@ const AddTransactionModal = ({
             </select>
           </div>
 
-          {selectedCategory && (
+          {/* RENDER LOGIC USING THE SAFE SUMMARY OBJECT */}
+          {selectedCategorySummary && (
             <div className="mb-4 p-4 bg-gray-100 rounded-lg border border-gray-200">
+              <h4 className="text-sm font-semibold text-gray-800 mb-2">
+                Summary for {selectedCategory.name} (This Period):
+              </h4>
               <div className="grid grid-cols-3 gap-2 text-sm font-medium text-gray-700">
                 <div>
-                  <div className="text-xs text-gray-500">Budget:</div>
-                  QAR {(selectedCategory.budgetAmount || 0).toFixed(2)}
+                  <div className="text-xs text-gray-500">Income:</div>
+                  QAR {selectedCategorySummary.income.toFixed(2)}
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Spent:</div>
-                  QAR {(selectedCategory.spentAmount || 0).toFixed(2)}
+                  <div className="text-xs text-gray-500">Expense:</div>
+                  QAR {selectedCategorySummary.expense.toFixed(2)}
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500">Remaining:</div>
+                  <div className="text-xs text-gray-500">Net Balance:</div>
                   <div
                     className={
-                      selectedCategory.budgetAmount -
-                        selectedCategory.spentAmount <
-                      0
+                      selectedCategorySummary.balance < 0
                         ? "text-red-500"
                         : "text-green-600"
                     }
                   >
-                    QAR{" "}
-                    {(
-                      (selectedCategory.budgetAmount || 0) -
-                      (selectedCategory.spentAmount || 0)
-                    ).toFixed(2)}
+                    QAR {selectedCategorySummary.balance.toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -334,7 +372,6 @@ const AddTransactionModal = ({
                   </p>
                 ) : (
                   categories.map((cat) => {
-                    // Removed the isDeletable check, now all categories can be deleted.
                     return (
                       <div
                         key={cat.name}
