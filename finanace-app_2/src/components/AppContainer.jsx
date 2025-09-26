@@ -84,6 +84,7 @@ const AppContainer = () => {
         onClose={() => setShowAddModal(false)}
         showMessage={showMessage}
         showConfirm={showConfirm}
+        filteredTransactions={filteredTransactions}
       />
 
       <MessageModal
