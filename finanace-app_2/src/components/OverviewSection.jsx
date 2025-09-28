@@ -81,21 +81,21 @@ const OverviewSection = () => {
       </div>
 
       {/* Grid layout for displaying total income, expenses, and balance. */}
-      <div className="grid grid-cols-3 gap-4 mb-4 text-center">
+      <div className="flex gap-x-3 text-center overflow-x-auto ">
         {/* Total Income display card. */}
-        <div className="bg-green-50 p-4 rounded-lg shadow">
+        <div className="bg-green-50 p-4 rounded-lg shadow ">
           <p className="text-sm text-green-700 font-medium">Total Income</p>
           {/* Displays total income, formatted to two decimal places. */}
           <p className="text-xl font-bold text-green-600">QAR {totalIncome.toFixed(2)}</p>
         </div>
         {/* Total Expenses display card. */}
-        <div className="bg-red-50 p-4 rounded-lg shadow">
+        <div className="bg-red-50 p-4 rounded-lg shadow ">
           <p className="text-sm text-red-700 font-medium">Total Expenses</p>
           {/* Displays total expenses, formatted to two decimal places. */}
           <p className="text-xl font-bold text-red-600">QAR {totalExpenses.toFixed(2)}</p>
         </div>
         {/* Balance display card. */}
-        <div className="bg-blue-50 p-4 rounded-lg shadow">
+        <div className="bg-blue-50 p-4 rounded-lg shadow ">
           <p className="text-sm text-blue-700 font-medium">Balance</p>
           {/* Displays balance, with dynamic text color based on positive/negative value. */}
           {/* Uses Math.abs() to display the absolute value, as the color indicates positive/negative. */}
