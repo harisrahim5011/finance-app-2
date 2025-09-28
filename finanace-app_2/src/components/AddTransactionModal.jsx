@@ -35,7 +35,7 @@ const AddTransactionModal = ({
     }
   }, [isOpen]);
 
-  const categories = userCategories || [];
+  const categories = React.useMemo(() => userCategories || [], [userCategories]);
 
   // This useEffect links the selected category name to the full category object (for budget info)
   useEffect(() => {
