@@ -115,7 +115,7 @@ const ExpenseList = ({ filteredTransactions }) => {
 
       {isOpen && (
         <div
-          className="origin-top-right absolute left-0 mt-2 w-screen max-w-md md:max-w-lg lg:max-w-xl rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none animate-fade-in"
+          className="origin-top-right absolute w-[250%] mt-2 -left-[6.7rem] max-w-md md:max-w-lg lg:max-w-xl rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none animate-fade-in"
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="menu-button"
