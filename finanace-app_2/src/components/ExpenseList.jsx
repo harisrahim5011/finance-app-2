@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useTransactions } from "../components/TransactionContext";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 const ExpenseList = ({ filteredTransactions }) => {
-  const { userCategories } = useTransactions();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
