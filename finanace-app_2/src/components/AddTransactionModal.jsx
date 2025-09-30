@@ -35,7 +35,10 @@ const AddTransactionModal = ({
     }
   }, [isOpen]);
 
-  const categories = React.useMemo(() => userCategories || [], [userCategories]);
+  const categories = React.useMemo(
+    () => userCategories || [],
+    [userCategories]
+  );
 
   // This useEffect links the selected category name to the full category object (for budget info)
   useEffect(() => {
@@ -181,7 +184,7 @@ const AddTransactionModal = ({
 
   return (
     <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-40 p-4">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md max-h-full overflow-y-auto flex-shrink-0">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-800">
             Add Transaction
@@ -336,7 +339,7 @@ const AddTransactionModal = ({
               <h4 className="font-semibold text-gray-700 mb-3">
                 Add New Category with Budget
               </h4>
-              <div className="flex flex-col md:flex-row gap-2 mb-4">
+              <div className="flex flex-col gap-2 mb-4">
                 <input
                   type="text"
                   value={newCategoryName}
