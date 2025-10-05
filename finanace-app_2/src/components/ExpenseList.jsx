@@ -1,7 +1,16 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronUp, Send } from "lucide-react";
+import { useTransactions } from './TransactionContext'; // Adjust path as needed
 
 const ExpenseList = ({ filteredTransactions }) => {
+  // Access context values
+  const { 
+    currentMonth, 
+    currentYear, 
+    forwardSurplus, 
+    loading 
+  } = useTransactions();
+
   const [isOpen, setIsOpen] = useState(false);
   const [isForwarding, setIsForwarding] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState([]);
@@ -85,7 +94,7 @@ const ExpenseList = ({ filteredTransactions }) => {
     });
   };
 
-  const handleForwardSelected = () => {
+  const handleForwardSelected = async () => {
     if (selectedCategories.length === 0) {
       alert("Please select at least one category to forward.");
       return;
@@ -95,7 +104,11 @@ const ExpenseList = ({ filteredTransactions }) => {
       (sum, name) => sum + (categorySummary[name]?.balance || 0),
       0
     );
+    
+    // Create the Date object for the first day of the currently viewed month
+    const currentViewDate = new Date(currentYear, currentMonth, 1);
 
+    // 1. CONFIRMATION
     const isConfirmed = window.confirm(
       `Are you sure you want to forward a total of QAR ${totalAmount.toFixed(
         2
@@ -105,17 +118,25 @@ const ExpenseList = ({ filteredTransactions }) => {
     if (!isConfirmed) {
       return;
     }
-
-    const forwardingData = selectedCategories.map((name) => ({
-      category: name,
-      balance: categorySummary[name].balance,
+    
+    // 2. PREPARE DATA
+    const surplusData = selectedCategories.map(name => ({
+        categoryName: name,
+        balance: categorySummary[name].balance 
     }));
 
-    console.log("Forwarding the following categories:", forwardingData);
-    alert(
-      `Successfully initiated forwarding of QAR ${totalAmount.toFixed(2)}.`
-    );
 
+    // 3. EXECUTE FORWARDING (This includes the next month eligibility check)
+    const success = await forwardSurplus(surplusData, currentViewDate);
+
+    if (success) {
+      alert(`Successfully forwarded QAR ${totalAmount.toFixed(2)} to the next budget period.`);
+    } else {
+      // The context function handles the logic failure and console logging
+      alert("Forwarding failed. This may be because the month you are viewing has not yet passed.");
+    }
+
+    // 4. RESET STATE
     setIsOpen(false);
     setIsForwarding(false);
     setSelectedCategories([]);
@@ -174,6 +195,7 @@ const ExpenseList = ({ filteredTransactions }) => {
           aria-expanded={isOpen}
           aria-haspopup="true"
           onClick={toggleDropdown}
+          disabled={loading} // Disable button if context operation is running
         >
           {isForwarding ? "Select Funds to Forward" : "Expense List"}
           {isOpen ? (
@@ -191,12 +213,11 @@ const ExpenseList = ({ filteredTransactions }) => {
             absolute 
             mt-2 
             
-            /* FIX: Width changed to 95vw */
-            w-[95vw]                  /* Set width to 95% of Viewport Width */
-            max-w-xl                  /* Use a standard max-width on large screens */
+            w-[95vw]                  
+            max-w-xl                  
             
-            left-1/2                  /* Move left edge to parent center */
-            transform -translate-x-1/2 /* Shift back by half its width (centering) */
+            left-1/2                  
+            transform -translate-x-1/2 
             
             rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none animate-fade-in z-20
           "
@@ -211,11 +232,15 @@ const ExpenseList = ({ filteredTransactions }) => {
               <button
                 onClick={handleForwardSelected}
                 className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors 
-                    ${selectedCategories.length > 0 ? "text-white bg-blue-600 hover:bg-blue-700" : "text-gray-500 bg-gray-100 cursor-not-allowed"}`}
-                disabled={selectedCategories.length === 0}
+                    ${selectedCategories.length > 0 && !loading ? "text-white bg-blue-600 hover:bg-blue-700" : "text-gray-500 bg-gray-100 cursor-not-allowed"}`}
+                disabled={selectedCategories.length === 0 || loading}
               >
-                <Send className="w-4 h-4 mr-2" />
-                Forward Selected ({selectedCategories.length})
+                {loading ? 'Processing...' : (
+                    <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Forward Selected ({selectedCategories.length})
+                    </>
+                )}
               </button>
             ) : (
               <button
@@ -231,6 +256,7 @@ const ExpenseList = ({ filteredTransactions }) => {
               <button
                 onClick={toggleForwarding}
                 className="text-gray-500 hover:text-red-600 text-sm font-medium px-2"
+                disabled={loading}
               >
                 Cancel
               </button>
@@ -272,6 +298,7 @@ const ExpenseList = ({ filteredTransactions }) => {
                                 checked={isChecked}
                                 onChange={() => handleSelectCategory(category.name)}
                                 className="mr-3 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                disabled={loading}
                             />
                         )}
 
