@@ -61,7 +61,6 @@ const ExpenseList = ({ filteredTransactions }) => {
 
   const toggleDropdown = () => {
     setIsOpen((prev) => {
-      // When opening the dropdown, always reset forwarding state
       if (!prev) {
         setIsForwarding(false);
         setSelectedCategories([]);
@@ -97,7 +96,6 @@ const ExpenseList = ({ filteredTransactions }) => {
       0
     );
 
-    // Confirmation step with OK and Cancel
     const isConfirmed = window.confirm(
       `Are you sure you want to forward a total of QAR ${totalAmount.toFixed(
         2
@@ -105,10 +103,9 @@ const ExpenseList = ({ filteredTransactions }) => {
     );
 
     if (!isConfirmed) {
-      return; // User clicked Cancel
+      return;
     }
 
-    // --- EXECUTE FORWARDING LOGIC HERE ---
     const forwardingData = selectedCategories.map((name) => ({
       category: name,
       balance: categorySummary[name].balance,
@@ -119,7 +116,6 @@ const ExpenseList = ({ filteredTransactions }) => {
       `Successfully initiated forwarding of QAR ${totalAmount.toFixed(2)}.`
     );
 
-    // Reset state after action
     setIsOpen(false);
     setIsForwarding(false);
     setSelectedCategories([]);
@@ -162,7 +158,6 @@ const ExpenseList = ({ filteredTransactions }) => {
 
   // --- Filtered List for Rendering ---
 
-  // Filter the list based on the forwarding state
   const renderedCategoriesList = isForwarding
     ? expenseCategoriesList.filter((category) => category.balance > 0)
     : expenseCategoriesList;
@@ -191,16 +186,28 @@ const ExpenseList = ({ filteredTransactions }) => {
 
       {isOpen && (
         <div
-          className="origin-top-right absolute w-[250%] mt-2 -left-[6.7rem] max-w-md md:max-w-lg lg:max-w-xl rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none animate-fade-in z-20"
+          className="
+            origin-top-right 
+            absolute 
+            mt-2 
+            
+            /* FIX: Width changed to 95vw */
+            w-[95vw]                  /* Set width to 95% of Viewport Width */
+            max-w-xl                  /* Use a standard max-width on large screens */
+            
+            left-1/2                  /* Move left edge to parent center */
+            transform -translate-x-1/2 /* Shift back by half its width (centering) */
+            
+            rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none animate-fade-in z-20
+          "
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="menu-button"
           tabIndex="-1"
         >
-          {/* Forward Button Section (Separate) */}
+          {/* Forward Button Section */}
           <div className="p-2 border-b border-gray-200 flex justify-between items-center">
             {isForwarding ? (
-              // Button for confirming the forwarding action
               <button
                 onClick={handleForwardSelected}
                 className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors 
@@ -211,7 +218,6 @@ const ExpenseList = ({ filteredTransactions }) => {
                 Forward Selected ({selectedCategories.length})
               </button>
             ) : (
-              // Button to enter forwarding selection mode
               <button
                 onClick={toggleForwarding}
                 className="flex items-center px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 font-medium rounded-md transition-colors"
@@ -222,7 +228,6 @@ const ExpenseList = ({ filteredTransactions }) => {
             )}
 
             {isForwarding && (
-              // Cancel button for exiting forwarding mode
               <button
                 onClick={toggleForwarding}
                 className="text-gray-500 hover:text-red-600 text-sm font-medium px-2"
@@ -253,28 +258,23 @@ const ExpenseList = ({ filteredTransactions }) => {
                 const isChecked = selectedCategories.includes(category.name);
 
                 return (
-                  // Outer container for padding and background style
                   <div
                     key={category.id}
                     className={`px-4 py-2 text-sm rounded-md mx-1 my-0.5 ${isForwarding ? 'hover:bg-blue-50' : 'hover:bg-gray-100'}`}
                     role="menuitem"
                     tabIndex="-1"
                   >
-                    {/* The FIX: Use <label> to make the entire content area clickable */}
                     <label className="flex justify-between items-center cursor-pointer w-full">
                         
-                        {/* Checkbox (Visible only in forwarding mode) */}
                         {isForwarding && (
                             <input
                                 type="checkbox"
                                 checked={isChecked}
-                                // Handle the state change directly on the input element
                                 onChange={() => handleSelectCategory(category.name)}
                                 className="mr-3 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                             />
                         )}
 
-                        {/* Content Area (flex-grow fills the remaining space) */}
                         <div className="flex-grow">
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-medium text-gray-700">{category.name}</span>
@@ -284,7 +284,6 @@ const ExpenseList = ({ filteredTransactions }) => {
                               </span>
                             </div>
                             
-                            {/* Progress Bar (Hidden in forwarding mode) */}
                             {!isForwarding && (
                               <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
