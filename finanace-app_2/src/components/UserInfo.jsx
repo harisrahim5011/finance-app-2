@@ -1,11 +1,13 @@
 import React from 'react';
+import { MoreVertical } from 'lucide-react'; // Import the menu icon
 
 /**
  * UserInfo Component
  *
  * This component displays the authenticated user's profile information,
  * including their display name, profile picture, and user ID.
- * It also provides a button to sign out the user for non-anonymous accounts.
+ * It also provides a button to sign out the user for non-anonymous accounts,
+ * now located inside a dropdown menu accessed via the vertical ellipsis icon.
  * For anonymous users, it will additionally show a Google Sign-In button
  * to allow them to upgrade their account.
  *
@@ -16,6 +18,10 @@ import React from 'react';
  * @param {function} props.onSignInGoogle - A callback function to be executed when the Google Sign-In button is clicked (for anonymous users).
  */
 const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
+  // State to control the visibility of the user menu dropdown
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const menuRef = React.useRef(null);
+
   // Safely get the first letter of the user's display name for a placeholder image.
   // If displayName is null or undefined, default to 'U'.
   const firstLetter = user.displayName?.charAt(0) || 'U';
@@ -24,9 +30,24 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
   // otherwise generate a placeholder image URL with the first letter of their name.
   const photoUrl = user.photoURL || `https://placehold.co/40x40/E2E8F0/4A5568?text=${firstLetter}`;
 
+  // Effect to handle clicks outside the menu to close it
+  React.useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuRef]);
+
+
   // --- Component JSX Structure ---
   return (
-    // Container for user information, styled with flexbox for alignment.
+    // Container for user information, styled with flexbox for alignment and justified space.
     <div className="flex items-center justify-between">
       {/* Left section: user photo and name/ID. */}
       <div className="flex items-center">
@@ -66,15 +87,44 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
           )}
         </div>
       </div>
-      {/* Right section: Sign Out button, conditionally rendered only if the user is NOT anonymous. */}
-      {!user.isAnonymous && ( // SIGNIFICANT CHANGE: Conditional rendering added here
+
+      {/* Right section: User Menu (contains Sign Out action) */}
+      <div className="relative" ref={menuRef}>
+        {/* Menu Icon (MoreVertical) */}
         <button
-          onClick={onSignOut} // Triggers the onSignOut callback when clicked.
-          className="text-sm text-blue-600 hover:text-blue-800 font-semibold" // Tailwind classes for styling
+          onClick={() => setIsMenuOpen(!isMenuOpen)} // Toggle the menu visibility
+          className="p-1 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors duration-150 focus:outline-none"
+          aria-label="User Menu"
+          aria-expanded={isMenuOpen}
         >
-          Sign Out
+          <MoreVertical className="w-5 h-5" />
         </button>
-      )}
+
+        {/* Dropdown Menu Panel */}
+        {isMenuOpen && (
+          <div className="absolute right-0 mt-2 w-40 origin-top-right rounded-lg shadow-xl bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+            <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button">
+              {/* Menu Item: Sign Out (Only visible for non-anonymous users) */}
+              {!user.isAnonymous && (
+                <button
+                  onClick={() => {
+                    onSignOut(); // Execute sign out action
+                    setIsMenuOpen(false); // Close the menu
+                  }}
+                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-800 font-medium transition-colors duration-150"
+                  role="menuitem"
+                >
+                  Sign Out
+                </button>
+              )}
+              {/* Other potential menu items (e.g., Settings, Profile) would go here */}
+              <div className="text-xs text-gray-400 px-4 py-1 border-t mt-1">
+                {user.displayName || 'Guest User'}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
