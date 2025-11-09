@@ -1,5 +1,5 @@
-import React from 'react';
-import { MoreVertical } from 'lucide-react'; // Import the menu icon
+import React, { useState } from "react";
+import { MoreVertical } from "lucide-react"; // Import the menu icon
 
 /**
  * UserInfo Component
@@ -21,14 +21,20 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
   // State to control the visibility of the user menu dropdown
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const menuRef = React.useRef(null);
+  // --- State for Month Cycle Control ---
+  const [cycleType, setCycleType] = useState("calendar");
+  const [customStartDay, setCustomStartDay] = useState(10);
+  // --- END: State for Month Cycle Control ---
 
   // Safely get the first letter of the user's display name for a placeholder image.
   // If displayName is null or undefined, default to 'U'.
-  const firstLetter = user.displayName?.charAt(0) || 'U';
+  const firstLetter = user.displayName?.charAt(0) || "U";
 
   // Determine the photo URL. Use the user's photoURL if available,
   // otherwise generate a placeholder image URL with the first letter of their name.
-  const photoUrl = user.photoURL || `https://placehold.co/40x40/E2E8F0/4A5568?text=${firstLetter}`;
+  const photoUrl =
+    user.photoURL ||
+    `https://placehold.co/40x40/E2E8F0/4A5568?text=${firstLetter}`;
 
   // Effect to handle clicks outside the menu to close it
   React.useEffect(() => {
@@ -38,12 +44,28 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [menuRef]);
+  // Handler for custom start day input
+  const handleDayChange = (e) => {
+    const day = parseInt(e.target.value, 10);
+    // Ensure day is a valid number for a month day
+    if (!isNaN(day) && day >= 1 && day <= 31) {
+      setCustomStartDay(day);
+    }
+  };
 
+  // Helper to display the currently selected cycle range type
+  const getCurrentCycleDisplay = () => {
+    if (cycleType === "calendar") {
+      return "Calendar Month (1st - EOM)";
+    } else {
+      return `${customStartDay}th to ${customStartDay}th of Next Month`;
+    }
+  };
 
   // --- Component JSX Structure ---
   return (
@@ -65,7 +87,9 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
         {/* Container for user's name and ID, and potentially the Google Sign-In button. */}
         <div>
           {/* User's display name. If null, default to 'Guest User'. */}
-          <p className="font-semibold text-gray-800 text-left">{user.displayName || 'Guest User'}</p>
+          <p className="font-semibold text-gray-800 text-left">
+            {user.displayName || "Guest User"}
+          </p>
           {/* User's unique ID. */}
           {/* <p className="text-sm text-gray-500 text-left">User ID: {user.uid}</p> */}
 
@@ -77,10 +101,22 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
             >
               {/* Google icon SVG */}
               <svg className="w-4 h-4 mr-1" viewBox="0 0 48 48">
-                <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path>
-                <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path>
-                <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path>
-                <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C39.99,35.508,44,30.028,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
+                <path
+                  fill="#FFC107"
+                  d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
+                ></path>
+                <path
+                  fill="#FF3D00"
+                  d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"
+                ></path>
+                <path
+                  fill="#4CAF50"
+                  d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"
+                ></path>
+                <path
+                  fill="#1976D2"
+                  d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C39.99,35.508,44,30.028,44,24C44,22.659,43.862,21.35,43.611,20.083z"
+                ></path>
               </svg>
               Sign in with Google
             </button>
@@ -102,8 +138,13 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
 
         {/* Dropdown Menu Panel */}
         {isMenuOpen && (
-          <div className="absolute right-0 mt-2 w-40 origin-top-right rounded-lg shadow-xl bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
-            <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button">
+          <div className="absolute right-0 mt-2 w-64 origin-top-right rounded-lg shadow-xl bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+            <div
+              className="py-1"
+              role="menu"
+              aria-orientation="vertical"
+              aria-labelledby="user-menu-button"
+            >
               {/* Menu Item: Sign Out (Only visible for non-anonymous users) */}
               {!user.isAnonymous && (
                 <button
@@ -119,9 +160,70 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
               )}
               {/* Other potential menu items (e.g., Settings, Profile) would go here */}
               <div className="text-xs text-gray-400 px-4 py-1 border-t mt-1">
-                {user.displayName || 'Guest User'}
+                {user.displayName || "Guest User"}
               </div>
             </div>
+            {/* --- Cycle Selection Controls --- */}
+            <div className="px-4 pt-2 pb-3 border-t mt-1">
+              <p className="text-sm font-semibold text-gray-800 mb-2">
+                Billing Cycle Setting
+              </p>
+
+              <p className="text-xs text-gray-500 mb-2">
+                Current:{" "}
+                <span className="font-normal text-gray-700">
+                  {getCurrentCycleDisplay()}
+                </span>
+              </p>
+
+              <div className="flex space-x-2 mb-3">
+                <button
+                  onClick={() => setCycleType("calendar")}
+                  className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
+                    cycleType === "calendar"
+                      ? "bg-blue-600 text-white shadow-md"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Calendar Month
+                </button>
+                <button
+                  onClick={() => setCycleType("custom")}
+                  className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
+                    cycleType === "custom"
+                      ? "bg-blue-600 text-white shadow-md"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Custom Cycle
+                </button>
+              </div>
+
+              {/* Custom Day Input (Visible only if 'custom' is selected) */}
+              {cycleType === "custom" && (
+                <div className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg">
+                  <label
+                    htmlFor="startDay"
+                    className="text-sm text-gray-700 whitespace-nowrap"
+                  >
+                    Starts on:
+                  </label>
+                  <input
+                    id="startDay"
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={customStartDay}
+                    onChange={handleDayChange}
+                    className="w-12 p-1 border border-blue-300 rounded-md text-center text-sm focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <span className="text-sm text-gray-500">
+                    (e.g., 10th to 10th)
+                  </span>
+                </div>
+              )}
+            </div>
+            {/* --- END Cycle Selection Controls --- */}
           </div>
         )}
       </div>
