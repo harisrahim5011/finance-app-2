@@ -23,7 +23,8 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
   const menuRef = React.useRef(null);
   // --- State for Month Cycle Control ---
   const [cycleType, setCycleType] = useState("calendar");
-  const [customStartDay, setCustomStartDay] = useState(10);
+  const [customStartDay, setCustomStartDay] = useState(15); // Default start day 15 for custom
+  const [customEndDay, setCustomEndDay] = useState(14); // Default end day 14 for custom (15th to 14th)
   // --- END: State for Month Cycle Control ---
 
   // Safely get the first letter of the user's display name for a placeholder image.
@@ -50,11 +51,10 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
     };
   }, [menuRef]);
   // Handler for custom start day input
-  const handleDayChange = (e) => {
+  const handleDayChange = (setter) => (e) => {
     const day = parseInt(e.target.value, 10);
-    // Ensure day is a valid number for a month day
     if (!isNaN(day) && day >= 1 && day <= 31) {
-      setCustomStartDay(day);
+      setter(day);
     }
   };
 
@@ -63,7 +63,12 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
     if (cycleType === "calendar") {
       return "Calendar Month (1st - EOM)";
     } else {
-      return `${customStartDay}th to ${customStartDay}th of Next Month`;
+      // Logic to determine if the cycle spans into the next month
+      const isSpanning =
+        customEndDay < customStartDay ||
+        (customStartDay === customEndDay && customStartDay !== 1);
+      const endText = isSpanning ? "(Next Month)" : "(Same Month)";
+      return `${customStartDay}th to ${customEndDay}th ${endText}`;
     }
   };
 
@@ -177,49 +182,74 @@ const UserInfo = ({ user, onSignOut, onSignInGoogle }) => {
               </p>
 
               <div className="flex space-x-2 mb-3">
-                <button
-                  onClick={() => setCycleType("calendar")}
-                  className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
-                    cycleType === "calendar"
-                      ? "bg-blue-600 text-white shadow-md"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Calendar Month
-                </button>
-                <button
-                  onClick={() => setCycleType("custom")}
-                  className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-lg transition-colors duration-150 ${
-                    cycleType === "custom"
-                      ? "bg-blue-600 text-white shadow-md"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Custom Cycle
-                </button>
+                {/* Calendar Month Radio Button */}
+                <label className="flex items-center space-x-2 cursor-pointer text-sm font-medium text-gray-700">
+                  <input
+                    type="radio"
+                    name="cycleType"
+                    value="calendar"
+                    checked={cycleType === "calendar"}
+                    onChange={() => setCycleType("calendar")}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span>Calendar Month</span>
+                </label>
+
+                {/* Custom Cycle Radio Button */}
+                <label className="flex items-center space-x-2 cursor-pointer text-sm font-medium text-gray-700">
+                  <input
+                    type="radio"
+                    name="cycleType"
+                    value="custom"
+                    checked={cycleType === "custom"}
+                    onChange={() => setCycleType("custom")}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span>Custom Cycle</span>
+                </label>
               </div>
 
               {/* Custom Day Input (Visible only if 'custom' is selected) */}
+              {/* Custom Day Inputs (Start and End) */}
               {cycleType === "custom" && (
-                <div className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg">
-                  <label
-                    htmlFor="startDay"
-                    className="text-sm text-gray-700 whitespace-nowrap"
-                  >
-                    Starts on:
-                  </label>
-                  <input
-                    id="startDay"
-                    type="number"
-                    min="1"
-                    max="31"
-                    value={customStartDay}
-                    onChange={handleDayChange}
-                    className="w-12 p-1 border border-blue-300 rounded-md text-center text-sm focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  <span className="text-sm text-gray-500">
-                    (e.g., 10th to 10th)
-                  </span>
+                <div className="flex flex-col space-y-2 p-2 bg-blue-50 border border-blue-200 rounded-lg transition-opacity">
+                  {/* Start Day Input */}
+                  <div className="flex justify-between items-center space-x-2">
+                    <label
+                      htmlFor="startDay"
+                      className="text-sm text-gray-700 whitespace-nowrap"
+                    >
+                      Cycle Starts Day:
+                    </label>
+                    <input
+                      id="startDay"
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={customStartDay}
+                      onChange={handleDayChange(setCustomStartDay)}
+                      className="w-14 p-1 border border-blue-300 rounded-md text-center text-sm font-mono focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* End Day Input */}
+                  <div className="flex justify-between items-center space-x-2">
+                    <label
+                      htmlFor="endDay"
+                      className="text-sm text-gray-700 whitespace-nowrap"
+                    >
+                      Cycle Ends Day:
+                    </label>
+                    <input
+                      id="endDay"
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={customEndDay}
+                      onChange={handleDayChange(setCustomEndDay)}
+                      className="w-14 p-1 border border-blue-300 rounded-md text-center text-sm font-mono focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
                 </div>
               )}
             </div>
