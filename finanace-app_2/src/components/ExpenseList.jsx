@@ -1,28 +1,38 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronUp, Send } from "lucide-react";
-import { useTransactions } from './TransactionContext'; // Adjust path as needed
+import { useTransactions } from './TransactionContext';
 
-const ExpenseList = ({ filteredTransactions }) => {
-  // Access context values
+const ExpenseList = () => {
   const { 
+    transactions,
     currentMonth, 
     currentYear, 
-    forwardSurplus, 
-    loading 
+    forwardSurplus,
+    loading,
+    getCycleBoundaries,
+    cycleType, // Get cycle type from context
+    formatCycleHeader // Get header formatter
   } = useTransactions();
 
   const [isOpen, setIsOpen] = useState(false);
   const [isForwarding, setIsForwarding] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState([]);
-
   const dropdownRef = useRef(null);
 
-  // 1. Safely ensure filteredTransactions is an array
+  // Filter transactions using cycle boundaries
+  const { start: cycleStart, end: cycleEnd } = getCycleBoundaries(currentMonth, currentYear);
+  
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const transactionDate = t.date.toDate();
+      return transactionDate >= cycleStart && transactionDate <= cycleEnd;
+    });
+  }, [transactions, cycleStart, cycleEnd]);
+
   const transactionsArray = Array.isArray(filteredTransactions)
     ? filteredTransactions
     : Object.values(filteredTransactions || {});
 
-  // 2. Calculate the income, expense, and balance for each category (Memoized)
   const categorySummary = useMemo(() => {
     return transactionsArray.reduce((acc, t) => {
       if (!t || typeof t.amount !== "number" || !t.category || !t.type) {
@@ -32,11 +42,7 @@ const ExpenseList = ({ filteredTransactions }) => {
       const { category, amount, type } = t;
 
       if (!acc[category]) {
-        acc[category] = {
-          income: 0,
-          expense: 0,
-          balance: 0,
-        };
+        acc[category] = { income: 0, expense: 0, balance: 0 };
       }
 
       if (type === "income") {
@@ -51,25 +57,21 @@ const ExpenseList = ({ filteredTransactions }) => {
     }, {});
   }, [transactionsArray]);
 
-  // 3. Prepare the final list for rendering (Memoized)
   const expenseCategoriesList = useMemo(() => {
     return Object.keys(categorySummary)
-      .filter(
-        (categoryName) =>
-          categorySummary[categoryName].income > 0 ||
-          categorySummary[categoryName].expense > 0
+      .filter(categoryName => 
+        categorySummary[categoryName].income > 0 || 
+        categorySummary[categoryName].expense > 0
       )
-      .map((categoryName) => ({
+      .map(categoryName => ({
         name: categoryName,
         id: categoryName,
         ...categorySummary[categoryName],
       }));
   }, [categorySummary]);
 
-  // --- Handlers for Dropdown and Forwarding ---
-
   const toggleDropdown = () => {
-    setIsOpen((prev) => {
+    setIsOpen(prev => {
       if (!prev) {
         setIsForwarding(false);
         setSelectedCategories([]);
@@ -80,18 +82,16 @@ const ExpenseList = ({ filteredTransactions }) => {
 
   const toggleForwarding = (e) => {
     e.stopPropagation();
-    setIsForwarding((prev) => !prev);
+    setIsForwarding(prev => !prev);
     setSelectedCategories([]);
   };
 
   const handleSelectCategory = (categoryName) => {
-    setSelectedCategories((prev) => {
-      if (prev.includes(categoryName)) {
-        return prev.filter((name) => name !== categoryName);
-      } else {
-        return [...prev, categoryName];
-      }
-    });
+    setSelectedCategories(prev => 
+      prev.includes(categoryName) 
+        ? prev.filter(name => name !== categoryName)
+        : [...prev, categoryName]
+    );
   };
 
   const handleForwardSelected = async () => {
@@ -104,45 +104,30 @@ const ExpenseList = ({ filteredTransactions }) => {
       (sum, name) => sum + (categorySummary[name]?.balance || 0),
       0
     );
-    
-    // Create the Date object for the first day of the currently viewed month
-    const currentViewDate = new Date(currentYear, currentMonth, 1);
 
-    // 1. CONFIRMATION
     const isConfirmed = window.confirm(
-      `Are you sure you want to forward a total of QAR ${totalAmount.toFixed(
-        2
-      )} from the ${selectedCategories.length} selected categories?`
+      `Are you sure you want to forward QAR ${totalAmount.toFixed(2)} from ${selectedCategories.length} categories?`
     );
 
-    if (!isConfirmed) {
-      return;
-    }
-    
-    // 2. PREPARE DATA
+    if (!isConfirmed) return;
+
     const surplusData = selectedCategories.map(name => ({
-        categoryName: name,
-        balance: categorySummary[name].balance 
+      categoryName: name,
+      balance: categorySummary[name].balance 
     }));
 
-
-    // 3. EXECUTE FORWARDING (This includes the next month eligibility check)
-    const success = await forwardSurplus(surplusData, currentViewDate);
+    const success = await forwardSurplus(surplusData);
 
     if (success) {
       alert(`Successfully forwarded QAR ${totalAmount.toFixed(2)} to the next budget period.`);
     } else {
-      // The context function handles the logic failure and console logging
-      alert("Forwarding failed. This may be because the month you are viewing has not yet passed.");
+      alert("Forwarding failed. The budget period may not be completed yet.");
     }
 
-    // 4. RESET STATE
     setIsOpen(false);
     setIsForwarding(false);
     setSelectedCategories([]);
   };
-
-  // --- Side Effect for Click Outside ---
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -158,8 +143,6 @@ const ExpenseList = ({ filteredTransactions }) => {
     };
   }, [dropdownRef]);
 
-  // --- Utility Functions ---
-
   const calculatePercentageRemaining = (expense, income) => {
     if (income === 0 || !income) return 0;
     const spentPercentage = (expense / income) * 100;
@@ -168,22 +151,17 @@ const ExpenseList = ({ filteredTransactions }) => {
   };
 
   const getProgressBarColor = (percentageRemaining) => {
-    if (percentageRemaining > 50) {
-      return "bg-green-500";
-    } else if (percentageRemaining > 15) {
-      return "bg-yellow-500";
-    } else {
-      return "bg-red-500";
-    }
+    if (percentageRemaining > 50) return "bg-green-500";
+    if (percentageRemaining > 15) return "bg-yellow-500";
+    return "bg-red-500";
   };
 
-  // --- Filtered List for Rendering ---
-
   const renderedCategoriesList = isForwarding
-    ? expenseCategoriesList.filter((category) => category.balance > 0)
+    ? expenseCategoriesList.filter(category => category.balance > 0)
     : expenseCategoriesList;
 
-  // --- Component Render ---
+  // ✅ Cycle type indicator
+  const cycleIndicator = cycleType === "calendar" ? "📅 Calendar" : "⚙️ Custom";
 
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
@@ -195,9 +173,10 @@ const ExpenseList = ({ filteredTransactions }) => {
           aria-expanded={isOpen}
           aria-haspopup="true"
           onClick={toggleDropdown}
-          disabled={loading} // Disable button if context operation is running
+          disabled={loading}
         >
-          {isForwarding ? "Select Funds to Forward" : "Expense List"}
+          {/* ✅ Show cycle type in button */}
+          {isForwarding ? "Select Funds to Forward" : `Expense List - ${cycleIndicator}`}
           {isOpen ? (
             <ChevronUp className="ml-2 -mr-1 h-5 w-5" aria-hidden="true" />
           ) : (
@@ -208,25 +187,12 @@ const ExpenseList = ({ filteredTransactions }) => {
 
       {isOpen && (
         <div
-          className="
-            origin-top-right 
-            absolute 
-            mt-2 
-            
-            w-[95vw]                  
-            max-w-xl                  
-            
-            left-1/2                  
-            transform -translate-x-1/2 
-            
-            rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none animate-fade-in z-20
-          "
+          className="origin-top-right absolute mt-2 w-[95vw] max-w-xl left-1/2 transform -translate-x-1/2 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none animate-fade-in z-20"
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="menu-button"
           tabIndex="-1"
         >
-          {/* Forward Button Section */}
           <div className="p-2 border-b border-gray-200 flex justify-between items-center">
             {isForwarding ? (
               <button
@@ -236,10 +202,10 @@ const ExpenseList = ({ filteredTransactions }) => {
                 disabled={selectedCategories.length === 0 || loading}
               >
                 {loading ? 'Processing...' : (
-                    <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Forward Selected ({selectedCategories.length})
-                    </>
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Forward Selected ({selectedCategories.length})
+                  </>
                 )}
               </button>
             ) : (
@@ -263,13 +229,17 @@ const ExpenseList = ({ filteredTransactions }) => {
             )}
           </div>
 
-          {/* Category List Section */}
+          {/* ✅ Show current cycle range */}
+          <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-sm text-gray-600 font-medium">
+            Period: {formatCycleHeader(currentMonth, currentYear)}
+          </div>
+
           <div className="py-1 max-h-60 overflow-y-auto" role="none">
             {renderedCategoriesList.length === 0 ? (
               <div className="px-4 py-2 text-sm text-gray-500 text-center">
                 {isForwarding
                   ? "No categories have a positive balance to forward."
-                  : "No activity recorded for this month."}
+                  : "No activity recorded for this period."}
               </div>
             ) : (
               renderedCategoriesList.map((category) => {
@@ -277,7 +247,6 @@ const ExpenseList = ({ filteredTransactions }) => {
                   category.expense,
                   category.income
                 );
-
                 const progressBarWidth = percentageRemaining;
                 const progressBarColor = getProgressBarColor(percentageRemaining);
                 const balance = category.balance;
@@ -291,48 +260,42 @@ const ExpenseList = ({ filteredTransactions }) => {
                     tabIndex="-1"
                   >
                     <label className="flex justify-between items-center cursor-pointer w-full">
-                        
-                        {isForwarding && (
-                            <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => handleSelectCategory(category.name)}
-                                className="mr-3 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                disabled={loading}
-                            />
-                        )}
+                      {isForwarding && (
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleSelectCategory(category.name)}
+                          className="mr-3 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          disabled={loading}
+                        />
+                      )}
 
-                        <div className="flex-grow">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-medium text-gray-700">{category.name}</span>
-                              <span className="text-xs text-gray-500">
-                                Exp: QAR {category.expense.toFixed(2)} / Inc: QAR{" "}
-                                {category.income.toFixed(2)}
-                              </span>
-                            </div>
-                            
-                            {!isForwarding && (
-                              <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div
-                                  className={`h-full rounded-full ${progressBarColor}`}
-                                  style={{ width: `${progressBarWidth}%` }}
-                                ></div>
-                              </div>
-                            )}
-                            
-                            <div className="flex justify-between items-center mt-1">
-                              <div className="text-xs text-gray-600">
-                                {percentageRemaining.toFixed(0)}% Remaining
-                              </div>
-                              <div
-                                className={`text-xs font-semibold ${
-                                  balance < 0 ? "text-red-500" : "text-green-600"
-                                }`}
-                              >
-                                Balance: QAR {balance.toFixed(2)}
-                              </div>
-                            </div>
+                      <div className="flex-grow">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-medium text-gray-700">{category.name}</span>
+                          <span className="text-xs text-gray-500">
+                            Exp: QAR {category.expense.toFixed(2)} / Inc: QAR {category.income.toFixed(2)}
+                          </span>
                         </div>
+                        
+                        {!isForwarding && (
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-full rounded-full ${progressBarColor}`}
+                              style={{ width: `${progressBarWidth}%` }}
+                            ></div>
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-between items-center mt-1">
+                          <div className="text-xs text-gray-600">
+                            {percentageRemaining.toFixed(0)}% Remaining
+                          </div>
+                          <div className={`text-xs font-semibold ${balance < 0 ? "text-red-500" : "text-green-600"}`}>
+                            Balance: QAR {balance.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
                     </label>
                   </div>
                 );
