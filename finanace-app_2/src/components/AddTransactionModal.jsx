@@ -1,6 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { useTransactions } from "../components/TransactionContext";
 
+/**
+ * AddTransactionModal Component
+ *
+ * A modal dialog for adding new income or expense transactions.
+ * Features include:
+ * - Type selection (income/expense)
+ * - Amount and category input
+ * - Optional description and date picker
+ * - Real-time category summary display
+ * - Category management (add/delete) for income type
+ *
+ * @component
+ * @param {Object} props
+ * @param {boolean} props.isOpen - Controls modal visibility
+ * @param {Function} props.onClose - Callback to close the modal
+ * @param {Function} props.showMessage - Display toast notification (message, isError)
+ * @param {Function} props.showConfirm - Display confirmation dialog (message, callback)
+ * @param {Array|Object} props.filteredTransactions - Transactions for current cycle (used to calculate summary)
+ *
+ * @returns {JSX.Element|null} Modal component or null if not open
+ */
 const AddTransactionModal = ({
   isOpen,
   onClose,
@@ -11,17 +32,35 @@ const AddTransactionModal = ({
   const { userCategories, addTransaction, addCategory, deleteCategory } =
     useTransactions();
 
+  // ==================== Form State ====================
+  // Tracks the transaction type: 'income' or 'expense'
   const [type, setType] = useState("expense");
+  // Amount input as string (converted to number on submit)
   const [amount, setAmount] = useState("");
+  // Selected category name (string, used as lookup key)
   const [category, setCategory] = useState("");
+  // Transaction date in ISO string format (YYYY-MM-DD)
   const [date, setDate] = useState("");
+  // Optional transaction description/notes
   const [description, setDescription] = useState("");
+  // New category name input (for adding custom categories)
   const [newCategoryName, setNewCategoryName] = useState("");
+  // Toggle visibility of category management panel
   const [showCategoryManagement, setShowCategoryManagement] = useState(false);
+  // Budget amount for new category
   const [newCategoryBudget, setNewCategoryBudget] = useState("");
 
-  const [selectedCategory, setSelectedCategory] = useState(null); // Base category object
+  // The full category object corresponding to the selected category name
+  // Contains: { id, name, budgetAmount, userId, createdAt }
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
+  /**
+   * Reset form to initial state whenever modal opens
+   * - Sets date to today
+   * - Clears all input fields
+   * - Hides category management panel
+   * This ensures a clean slate for each new transaction entry
+   */
   useEffect(() => {
     if (isOpen) {
       const today = new Date();
@@ -35,12 +74,18 @@ const AddTransactionModal = ({
     }
   }, [isOpen]);
 
+  // Memoize categories to prevent unnecessary re-renders if userCategories hasn't changed
   const categories = React.useMemo(
     () => userCategories || [],
     [userCategories]
   );
 
-  // This useEffect links the selected category name to the full category object (for budget info)
+  /**
+   * Sync selectedCategory object whenever the category name selection changes
+   * Looks up the full category object from the categories array using the selected name
+   * Sets to null if no category is currently selected
+   * This allows us to access category metadata (budget, id) throughout the component
+   */
   useEffect(() => {
     if (category) {
       const currentCategory = categories.find((cat) => cat.name === category);
@@ -50,6 +95,21 @@ const AddTransactionModal = ({
     }
   }, [category, categories]);
 
+  /**
+   * Handler for adding a new custom category with optional budget
+   *
+   * Validates:
+   * - Category name is not empty
+   * - Budget is a valid non-negative number
+   *
+   * On success:
+   * - Calls context method addCategory()
+   * - Clears input fields
+   * - Shows success message
+   *
+   * On error:
+   * - Shows error message to user
+   */
   const handleAddCategory = async () => {
     if (newCategoryName.trim() === "") {
       showMessage("Please enter a name for the new category.", true);
@@ -71,6 +131,19 @@ const AddTransactionModal = ({
     }
   };
 
+  /**
+   * Handler for deleting a category with user confirmation
+   *
+   * Process:
+   * 1. Validates that showConfirm function is available
+   * 2. Shows confirmation dialog to user
+   * 3. On confirm: calls deleteCategory() from context
+   * 4. Shows success or error message
+   *
+   * Note: Deleting a category does not affect existing transactions
+   *
+   * @param {string} categoryToDeleteName - Name of the category to delete
+   */
   const handleDeleteCategory = async (categoryToDeleteName) => {
     if (typeof showConfirm !== "function") {
       console.error(
@@ -103,6 +176,22 @@ const AddTransactionModal = ({
     );
   };
 
+  /**
+   * Main form submission handler
+   *
+   * Validates:
+   * - All required fields are filled
+   * - Amount is positive
+   *
+   * Process:
+   * 1. Prevents default form submission
+   * 2. Constructs transaction object with user inputs
+   * 3. Calls context addTransaction() method
+   * 4. On success: shows confirmation and closes modal
+   * 5. On error: shows error message
+   *
+   * @param {Event} e - Form submit event
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -131,8 +220,13 @@ const AddTransactionModal = ({
     }
   };
 
+  // Hide modal if not open
   if (!isOpen) return null;
 
+  // ==================== Compute Derived Data ====================
+  // Filter categories based on transaction type:
+  // - Income: only categories with a defined budget
+  // - Expense: all categories
   const filteredCategories = categories.filter((cat) => {
     if (type === "income") {
       return cat.budgetAmount !== null && cat.budgetAmount !== undefined;
@@ -141,12 +235,21 @@ const AddTransactionModal = ({
     }
   });
 
-  // 1. Safely ensure filteredTransactions is an array for reduce()
+  // Normalize filteredTransactions to array format
+  // May come in as array or object from parent, coerce to array for reduce()
   const transactionsArray = Array.isArray(filteredTransactions)
     ? filteredTransactions
     : Object.values(filteredTransactions || {});
 
-  // 2. Calculate the income, expense, and balance for each category (Category Summary Object)
+  /**
+   * Build a summary of income, expense, and balance per category
+   * for the current visible period (filtered transactions)
+   *
+   * This shows the user their current spending context when adding
+   * a new transaction, helping them make informed decisions
+   *
+   * Structure: { [categoryName]: { income: 0, expense: 0, balance: 0 } }
+   */
   const categorySummary = transactionsArray.reduce((acc, t) => {
     if (!t || typeof t.amount !== "number" || !t.category || !t.type) {
       return acc;
@@ -173,7 +276,12 @@ const AddTransactionModal = ({
     return acc;
   }, {});
 
-  // 3. FIX: Safely retrieve the summary data for the selected category, providing a default zero-object if none exists.
+  /**
+   * Safe accessor for the selected category's summary data
+   * Returns null if no category selected
+   * Returns default zero-object if category has no transactions yet
+   * This prevents rendering errors when displaying summary info
+   */
   const selectedCategorySummary = selectedCategory
     ? categorySummary[selectedCategory.name] || {
         income: 0,
@@ -209,7 +317,10 @@ const AddTransactionModal = ({
             </svg>
           </button>
         </div>
+
+        {/* Main form for transaction input */}
         <form onSubmit={handleSubmit}>
+          {/* Transaction Type Selector - Choose between income and expense */}
           <div className="mb-4">
             <label
               htmlFor="transactionType"
@@ -230,6 +341,8 @@ const AddTransactionModal = ({
               <option value="expense">Expense</option>
             </select>
           </div>
+
+          {/* Amount Input - The transaction amount in QAR */}
           <div className="mb-4">
             <label
               htmlFor="transactionAmount"
@@ -249,6 +362,8 @@ const AddTransactionModal = ({
               placeholder="e.g., 50.00"
             />
           </div>
+
+          {/* Category Selector - Pick from user's defined categories */}
           <div className="mb-4">
             <label
               htmlFor="transactionCategory"
@@ -272,7 +387,8 @@ const AddTransactionModal = ({
             </select>
           </div>
 
-          {/* RENDER LOGIC USING THE SAFE SUMMARY OBJECT */}
+          {/* Category Summary Card - Shows income/expense/balance for selected category in current period */}
+          {/* Helps users understand their spending context before adding a new transaction */}
           {selectedCategorySummary && (
             <div className="mb-4 p-4 bg-gray-100 rounded-lg border border-gray-200">
               <h4 className="text-sm font-semibold text-gray-800 mb-2">
@@ -303,6 +419,7 @@ const AddTransactionModal = ({
             </div>
           )}
 
+          {/* Description Field - Optional transaction notes */}
           <div className="mb-4">
             <label
               htmlFor="transactionDescription"
@@ -320,6 +437,7 @@ const AddTransactionModal = ({
             ></textarea>
           </div>
 
+          {/* Category Management Toggle - Only show for income type */}
           {type === "income" && (
             <div className="mb-4 text-center">
               <button
@@ -334,6 +452,8 @@ const AddTransactionModal = ({
             </div>
           )}
 
+          {/* Category Management Panel - Add new categories with budgets and delete existing ones */}
+          {/* Only visible for income type when toggle is active */}
           {showCategoryManagement && type === "income" && (
             <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
               <h4 className="font-semibold text-gray-700 mb-3">
@@ -412,6 +532,7 @@ const AddTransactionModal = ({
             </div>
           )}
 
+          {/* Date Picker - Allows selecting a date for the transaction */}
           <div className="mb-6">
             <label
               htmlFor="transactionDate"
@@ -428,6 +549,8 @@ const AddTransactionModal = ({
               className="w-full p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
+
+          {/* Form Action Buttons - Cancel closes modal, Submit adds the transaction */}
           <div className="flex justify-end space-x-3">
             <button
               type="button"

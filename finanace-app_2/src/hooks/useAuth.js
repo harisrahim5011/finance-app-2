@@ -1,33 +1,52 @@
-import { useContext } from 'react'; // Import the useContext hook from React
-import { AuthContext } from '../components/AuthContext'; // Import the AuthContext from its file
+import { useContext } from 'react';
+import { AuthContext } from '../components/AuthContext';
 
 /**
- * @function useAuth
- * @description A custom React hook to access authentication context.
- * This hook simplifies the process of consuming the AuthContext,
- * providing the authentication state and functions to components.
- * It also ensures that the hook is used within an AuthProvider.
- * @returns {object} The authentication context object, containing
- * authentication state (e.g., user, isAuthenticated)
- * and related functions (e.g., login, logout).
- * @throws {Error} If the hook is used outside of an AuthProvider,
- * indicating a missing context provider in the component tree.
+ * @typedef {Object} AuthContextShape
+ * @property {import('firebase/auth').User|null} user - Currently authenticated user object or null when not signed in.
+ * @property {boolean} isAuthenticated - True when a user is authenticated.
+ * @property {() => Promise<void>} login - Function to trigger login (implementation provided by AuthProvider).
+ * @property {() => Promise<void>} logout - Function to sign the user out.
+ * @property {boolean} loading - True while auth state is initializing/loading.
+ */
+
+/**
+ * useAuth
+ * --------
+ * A small convenience hook to access authentication state and helpers
+ * from the `AuthContext` provider. This keeps components concise and
+ * centralizes the check that the hook is used inside an `AuthProvider`.
+ *
+ * Contract (inputs/outputs):
+ * - Inputs: none (reads context)
+ * - Output: an object conforming to AuthContextShape
+ * - Error modes: throws if there is no provider above in the tree
+ *
+ * Example usage:
+ * const { user, isAuthenticated, login, logout, loading } = useAuth();
+ *
+ * Notes:
+ * - This hook must be called from React function components or other
+ *   hooks (not from class components or outside React render flow).
+ * - In Server-Side Rendering (SSR) environments, AuthProvider may be
+ *   unavailable during build time; protect usage accordingly.
+ *
+ * @returns {AuthContextShape} The authentication context value.
+ * @throws {Error} If called outside of an AuthProvider (missing context).
  */
 export const useAuth = () => {
-  // Use the useContext hook to get the current value of AuthContext.
-  // This value is whatever was passed to the `value` prop of the nearest <AuthContext.Provider>.
+  // Grab the nearest AuthContext value. The value is set by
+  // <AuthContext.Provider value={...} /> inside the AuthProvider component.
   const context = useContext(AuthContext);
 
-  // Check if the context is null or undefined.
-  // This typically happens if the useAuth hook is called outside of
-  // a component that is wrapped by AuthProvider.
+  // Defensive developer ergonomics: fail fast with an explicit error
+  // when the hook consumer forgot to wrap the component tree with
+  // the corresponding context provider. This is much easier to debug
+  // than silent `undefined` errors later in render.
   if (!context) {
-    // If the context is not available, throw an error to inform the developer
-    // that the AuthProvider is missing in the component tree.
     throw new Error('useAuth must be used within an AuthProvider');
   }
 
-  // If the context is successfully retrieved, return it.
-  // This context object will contain the authentication state and functions.
+  // Return the context unchanged. Consumers receive the shape described above.
   return context;
 };
