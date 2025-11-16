@@ -33,34 +33,35 @@ export function TransactionProvider({ children }) {
     const { currentUser } = useAuth();
     const [userCategories, setUserCategories] = useState([]);
 
-    // Billing cycle settings with localStorage persistence
+    // Billing cycle settings
     const [cycleType, setCycleType] = useState(() => {
         const saved = localStorage.getItem("userInfo_billingCycle_type");
         return saved || "calendar";
     });
     
-    const [customStartDay, setCustomStartDay] = useState(() => {
-        const saved = localStorage.getItem("userInfo_billingCycle_startDay");
-        return saved ? parseInt(saved, 10) : 15;
-    });
-    
-    const [customEndDay, setCustomEndDay] = useState(() => {
-        const saved = localStorage.getItem("userInfo_billingCycle_endDay");
-        return saved ? parseInt(saved, 10) : 14;
+    const [customDateRange, setCustomDateRange] = useState(() => {
+        const savedStart = localStorage.getItem("userInfo_customStartDate");
+        const savedEnd = localStorage.getItem("userInfo_customEndDate");
+        
+        const today = new Date();
+        const defaultStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const defaultEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        
+        return {
+            start: savedStart || defaultStart.toISOString().split('T')[0],
+            end: savedEnd || defaultEnd.toISOString().split('T')[0]
+        };
     });
 
-    // Persist settings to localStorage
+    // Persist settings
     useEffect(() => {
         localStorage.setItem("userInfo_billingCycle_type", cycleType);
     }, [cycleType]);
     
     useEffect(() => {
-        localStorage.setItem("userInfo_billingCycle_startDay", customStartDay.toString());
-    }, [customStartDay]);
-    
-    useEffect(() => {
-        localStorage.setItem("userInfo_billingCycle_endDay", customEndDay.toString());
-    }, [customEndDay]);
+        localStorage.setItem("userInfo_customStartDate", customDateRange.start);
+        localStorage.setItem("userInfo_customEndDate", customDateRange.end);
+    }, [customDateRange]);
 
     const defaultCategories = [
         { name: "Food", budgetAmount: 0, spentAmount: 0, type: "expense" },
@@ -74,7 +75,6 @@ export function TransactionProvider({ children }) {
         { name: "Savings", budgetAmount: 0, spentAmount: 0, type: "income" },
     ];
 
-    // Fetch transactions and categories from Firestore
     useEffect(() => {
         let unsubscribeTransactions = () => {};
         let unsubscribeCategories = () => {};
@@ -149,110 +149,68 @@ export function TransactionProvider({ children }) {
         };
     }, [currentUser, appId]);
 
-    // Get cycle boundaries for any month/year
     const getCycleBoundaries = (month, year) => {
         if (cycleType === "calendar") {
             const start = new Date(year, month, 1);
             const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
             return { start, end };
         } else {
-            // Custom: Start always in current month, end always in next month
-            const startDate = new Date(year, month, customStartDay);
-            const endDate = new Date(year, month + 1, customEndDay, 23, 59, 59, 999);
-            return { start: startDate, end: endDate };
+            return {
+                start: new Date(customDateRange.start),
+                end: new Date(customDateRange.end)
+            };
         }
     };
 
-    // Format header for display in OverviewSection
     const formatCycleHeader = (month, year) => {
         if (cycleType === "calendar") {
             return new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
         } else {
-            const startDate = new Date(year, month, customStartDay);
-            const endDate = new Date(year, month + 1, customEndDay);
+            const start = new Date(customDateRange.start);
+            const end = new Date(customDateRange.end);
             
-            const startStr = startDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
-            const endStr = endDate.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+            const startStr = start.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
+            const endStr = end.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
             
-            return `${startStr} - ${endStr}, ${year}`;
+            return `${startStr} - ${endStr}`;
         }
     };
 
-    // Format setting info for UserInfo component
     const formatCycleSettingInfo = () => {
         if (cycleType === "calendar") {
             return "Calendar Month (1st - EOM)";
         } else {
-            return `${customStartDay}th to ${customEndDay}th (Next Month)`;
+            const start = new Date(customDateRange.start);
+            const end = new Date(customDateRange.end);
+            return `${start.toLocaleDateString()} to ${end.toLocaleDateString()}`;
         }
     };
 
-    // Hybrid surplus forwarding logic
     const forwardSurplus = async (surplusData) => {
         if (!currentUser) return false;
 
         const { start: viewedCycleStart, end: viewedCycleEnd } = getCycleBoundaries(currentMonth, currentYear);
         const today = new Date();
         
-        let canForward = false;
-        let errorMessage = "Forwarding failed.";
-
-        if (cycleType === "calendar") {
-            // Calendar: Can forward from any completed month
-            const isViewedMonthInPast = 
-                today.getFullYear() > viewedCycleStart.getFullYear() ||
-                (today.getFullYear() === viewedCycleStart.getFullYear() && today.getMonth() > viewedCycleStart.getMonth());
-            
-            canForward = isViewedMonthInPast;
-            if (!canForward) {
-                errorMessage = "Forwarding failed: Funds can only be forwarded from a completed budget period (a past month).";
-            }
-        } else {
-            // Custom: Must be in current cycle AND forwarding from immediate previous cycle
-            const actualCurrentMonth = today.getMonth();
-            const actualCurrentYear = today.getFullYear();
-            const { start: actualCycleStart, end: actualCycleEnd } = getCycleBoundaries(actualCurrentMonth, actualCurrentYear);
-            
-            const isInCurrentCycle = today >= actualCycleStart && today <= actualCycleEnd;
-            
-            // Calculate previous cycle
-            const prevCycleStart = new Date(actualCycleStart);
-            prevCycleStart.setMonth(prevCycleStart.getMonth() - 1);
-            const { start: prevCycleStartCalc, end: prevCycleEndCalc } = getCycleBoundaries(prevCycleStart.getMonth(), prevCycleStart.getFullYear());
-            
-            const isForwardingPrevCycle = viewedCycleStart.getTime() === prevCycleStartCalc.getTime();
-            
-            canForward = isInCurrentCycle && isForwardingPrevCycle;
-            
-            if (!isInCurrentCycle) {
-                errorMessage = "Forwarding failed: You must be in the current budget period to forward funds.";
-            } else if (!isForwardingPrevCycle) {
-                errorMessage = "Forwarding failed: Only the immediate previous cycle can be forwarded from the current period.";
-            }
-        }
-
-        if (!canForward) {
-            alert(errorMessage);
+        const isViewedPeriodComplete = today > viewedCycleEnd;
+        
+        if (!isViewedPeriodComplete) {
+            alert("Forwarding failed: Funds can only be forwarded from a completed budget period.");
             return false;
         }
 
-        // ✅ FIXED: Create transactions on the correct dates
-        // 1. Expense at end of viewed period (roll-out)
-        const sourceTimestamp = Timestamp.fromDate(viewedCycleEnd);
-        
-        // 2. Income on today's day number, in next period (roll-in)
         let targetDate = new Date(
             viewedCycleEnd.getFullYear(),
             viewedCycleEnd.getMonth() + 1,
             today.getDate()
         );
         
-        // Handle invalid days (e.g., Feb 31 → Feb 28/29)
         if (targetDate.getDate() !== today.getDate()) {
             targetDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
         }
         
         const targetTimestamp = Timestamp.fromDate(targetDate);
+        const sourceTimestamp = Timestamp.fromDate(viewedCycleEnd);
 
         setLoading(true);
         
@@ -263,7 +221,6 @@ export function TransactionProvider({ children }) {
             const promises = surplusData.map(async ({ categoryName, balance }) => {
                 if (balance <= 0) return; 
                 
-                // Zero out surplus at cycle end
                 await addDoc(transactionsRef, {
                     type: 'expense',
                     amount: balance,
@@ -275,7 +232,6 @@ export function TransactionProvider({ children }) {
                     isRollOver: true,
                 });
 
-                // Roll over to next cycle on today's day number
                 await addDoc(transactionsRef, {
                     type: 'income',
                     amount: balance,
@@ -287,7 +243,6 @@ export function TransactionProvider({ children }) {
                     isRollOver: true,
                 });
 
-                // Update category spent amount
                 const q = query(categoriesRef, where("name", "==", categoryName));
                 const categorySnapshot = await getDocs(q);
                 
@@ -314,33 +269,43 @@ export function TransactionProvider({ children }) {
         }
     };
 
-    // Navigate between periods
+    // ✅ FIXED: Always update currentMonth/currentYear for OverviewSection
     const changeMonth = (delta) => {
-        if (cycleType === "calendar") {
-            setCurrentMonth(prev => {
-                let newMonth = prev + delta;
-                let newYear = currentYear;
+        // Always update calendar month state (required for OverviewSection)
+        setCurrentMonth(prev => {
+            let newMonth = prev + delta;
+            let newYear = currentYear;
 
-                if (newMonth < 0) {
-                    newMonth = 11;
-                    newYear--;
-                } else if (newMonth > 11) {
-                    newMonth = 0;
-                    newYear++;
-                }
+            if (newMonth < 0) {
+                newMonth = 11;
+                newYear--;
+            } else if (newMonth > 11) {
+                newMonth = 0;
+                newYear++;
+            }
 
-                setCurrentYear(newYear);
-                setCurrentDay(1);
-                return newMonth;
+            setCurrentYear(newYear);
+            setCurrentDay(1);
+            return newMonth;
+        });
+
+        // Also update custom date range if in custom mode (for ExpenseList)
+        if (cycleType === "custom") {
+            const currentStart = new Date(customDateRange.start);
+            const currentEnd = new Date(customDateRange.end);
+            const rangeInMs = currentEnd - currentStart;
+            
+            const newStart = new Date(currentStart.getTime() + delta * rangeInMs);
+            const newEnd = new Date(currentEnd.getTime() + delta * rangeInMs);
+            
+            setCustomDateRange({
+                start: newStart.toISOString().split('T')[0],
+                end: newEnd.toISOString().split('T')[0]
             });
-        } else {
-            // Navigate by shifting start date
-            const newStartDate = new Date(currentYear, currentMonth + delta, customStartDay);
-            setCurrentMonth(newStartDate.getMonth());
-            setCurrentYear(newStartDate.getFullYear());
         }
     };
 
+    // ✅ FIXED: Added missing changeDay function
     const changeDay = (delta) => {
         const currentDate = new Date(currentYear, currentMonth, currentDay);
         currentDate.setDate(currentDate.getDate() + delta);
@@ -350,7 +315,7 @@ export function TransactionProvider({ children }) {
         setCurrentDay(currentDate.getDate());
     };
 
-    // Add new transaction
+    // Add transaction
     const addTransaction = async (transaction) => {
         if (!currentUser) {
             console.warn("Cannot add transaction: No user authenticated.");
@@ -366,7 +331,6 @@ export function TransactionProvider({ children }) {
                 createdAt: Timestamp.now()
             });
 
-            // Update category aggregates
             const categoryToUpdateQuery = query(
                 collection(db, `artifacts/${appId}/users/${currentUser.uid}/categories`),
                 where("name", "==", transaction.category)
@@ -399,7 +363,7 @@ export function TransactionProvider({ children }) {
         }
     };
 
-    // Add new category
+    // Add category
     const addCategory = async (name, budgetAmount) => {
         if (!currentUser || !name.trim()) {
             console.warn("Cannot add category: Missing user or name.");
@@ -483,9 +447,8 @@ export function TransactionProvider({ children }) {
         } finally {
             setLoading(false);
         }
-    };
+    }
 
-    // Context value
     const value = {
         transactions,
         currentMonth,
@@ -500,13 +463,10 @@ export function TransactionProvider({ children }) {
         changeDay,
         forwardSurplus,
         loading,
-        // Cycle management
         cycleType,
         setCycleType,
-        customStartDay,
-        setCustomStartDay,
-        customEndDay,
-        setCustomEndDay,
+        customDateRange,
+        setCustomDateRange,
         getCycleBoundaries,
         formatCycleHeader,
         formatCycleSettingInfo,
