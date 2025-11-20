@@ -426,8 +426,21 @@ const ExpenseList = () => {
             ) : (
               // View Mode: Forward Surplus button to switch to forward mode
               <button
-                onClick={toggleForwarding}
-                className="flex items-center px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 font-medium rounded-md transition-colors"
+                onClick={
+                  cycleType === "calendar" ? toggleForwarding : undefined
+                }
+                disabled={cycleType !== "calendar"}
+                className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors
+      ${
+        cycleType === "calendar"
+          ? "text-blue-600 hover:bg-blue-50"
+          : "text-gray-400 bg-gray-100 cursor-not-allowed"
+      }`}
+                title={
+                  cycleType !== "calendar"
+                    ? "Only available in Calendar Month mode"
+                    : ""
+                }
               >
                 <Send className="w-4 h-4 mr-2" />
                 Forward Surplus
